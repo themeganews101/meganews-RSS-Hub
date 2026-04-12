@@ -1,0 +1,29 @@
+name: Miaoli News Bridge
+on:
+  schedule:
+    - cron: '0 * * * *' # 每一小時自動執行一次 (UTC 時間)
+  workflow_dispatch: # 允許你手動點擊按鈕來測試
+
+jobs:
+  fetch_miaoli:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 賦予機器人寫入檔案並上傳的權限
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fetch Miaoli RSS via Curl
+        run: |
+          # 使用 curl 模擬瀏覽器抓取苗栗 RSS 並存為本地檔案
+          # -L 會自動處理轉址，-f 代表失敗時不執行後續動作
+          curl -L -f "https://www.miaoli.gov.tw/OpenData.aspx?SN=F871C7470FAF2E95" -o miaoli_proxy.xml || echo "Download failed"
+          
+      - name: Commit and Push to Repo
+        run: |
+          git config --global user.name "Nexus-Auto-Bot"
+          git config --global user.email "bot@nexus.ai"
+          git add miaoli_proxy.xml
+          # 如果檔案沒有變動，就不執行 commit 避免報錯
+          git commit -m "Update Miaoli Proxy RSS [skip ci]" || exit 0
+          git push
