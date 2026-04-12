@@ -1,29 +1,41 @@
 name: Miaoli News Bridge
 on:
   schedule:
-    - cron: '0 * * * *' # 每一小時自動執行一次 (UTC 時間)
-  workflow_dispatch: # 允許你手動點擊按鈕來測試
+    - cron: '0 * * * *' # 每小時執行一次
+  workflow_dispatch: # 允許手動測試
+
+env:
+  # 解決 2026 年 Node.js 24 的預警，讓機器人跑在最新環境
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   fetch_miaoli:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 賦予機器人寫入檔案並上傳的權限
+      contents: write # 確保機器人有權限修改倉庫內容
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # 使用內建 Token 確保 Push 權限暢通
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Fetch Miaoli RSS via Curl
         run: |
-          # 使用 curl 模擬瀏覽器抓取苗栗 RSS 並存為本地檔案
-          # -L 會自動處理轉址，-f 代表失敗時不執行後續動作
-          curl -L -f "https://www.miaoli.gov.tw/OpenData.aspx?SN=F871C7470FAF2E95" -o miaoli_proxy.xml || echo "Download failed"
+          # 增加 -s (靜音模式) 與 -S (顯示錯誤)，增加成功率
+          curl -L -f -s -S "https://www.miaoli.gov.tw/OpenData.aspx?SN=F871C7470FAF2E95" -o miaoli_proxy.xml || echo "Download failed"
           
-      - name: Commit and Push to Repo
+      - name: Commit and Push
         run: |
-          git config --global user.name "Nexus-Auto-Bot"
-          git config --global user.email "bot@nexus.ai"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add miaoli_proxy.xml
-          # 如果檔案沒有變動，就不執行 commit 避免報錯
-          git commit -m "Update Miaoli Proxy RSS [skip ci]" || exit 0
-          git push
+          
+          # 檢查是否有變更，避免無意義的 commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update Miaoli Proxy RSS [skip ci]"
+            # 使用環境變數中的 Token 進行強制 Push，解決 128 錯誤
+            git push origin main
+          fi
